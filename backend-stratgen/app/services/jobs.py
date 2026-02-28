@@ -1,6 +1,6 @@
 from uuid import uuid4
 
-from app.models import GamePlan, JobCreateRequest, JobResponse
+from app.models.schemas import GamePlan, JobCreateRequest, JobResponse
 from app.services.builder import build_game
 from app.services.llm import generate_title
 
