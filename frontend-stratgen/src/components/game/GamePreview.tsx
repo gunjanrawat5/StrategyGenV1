@@ -1,5 +1,5 @@
-import './GamePreview.css'
 import type { JobStatus } from '../../types/jobs'
+import './GamePreview.css'
 
 type GamePreviewProps = {
   iframeSrc: string | null
@@ -9,23 +9,34 @@ type GamePreviewProps = {
 }
 
 function GamePreview({ iframeSrc, title, status, hint }: GamePreviewProps) {
-  return (
-    <section className="game-preview">
-      <header className="game-preview__header">
-        <h1>{title}</h1>
-        <span className={`game-preview__status game-preview__status--${status}`}>{status}</span>
-      </header>
+  const statusLabel = status === 'idle' ? 'Waiting' : status
 
-      <p className="game-preview__hint">{hint}</p>
+  return (
+    <div className="game-preview">
+      <header className="game-preview__header">
+        <div>
+          <p className="game-preview__label">Preview</p>
+          <h2>{title}</h2>
+        </div>
+        <span className="game-preview__status">{statusLabel}</span>
+      </header>
 
       <div className="game-preview__frame-wrap">
         {iframeSrc ? (
-          <iframe title={title} src={iframeSrc} className="game-preview__frame" />
+          <iframe
+            title="Generated game frame"
+            src={iframeSrc}
+            className="game-preview__frame"
+            loading="lazy"
+            allow="fullscreen"
+          />
         ) : (
-          <div className="game-preview__placeholder">No game loaded yet.</div>
+          <div className="game-preview__placeholder">
+            <p>{hint}</p>
+          </div>
         )}
       </div>
-    </section>
+    </div>
   )
 }
 

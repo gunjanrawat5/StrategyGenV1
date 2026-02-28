@@ -1,27 +1,26 @@
-.workspace-layout {
+.workspace {
   display: grid;
-  grid-template-columns: 360px minmax(0, 1fr);
+  grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
+  gap: 1rem;
   min-height: 100vh;
-  background: #0f172a;
-  color: #e2e8f0;
+  padding: 1rem;
 }
 
-.workspace-sidebar {
-  border-right: 1px solid #1e293b;
-  background: #020617;
+.workspace__sidebar {
+  min-height: calc(100vh - 2rem);
 }
 
-.workspace-content {
-  min-width: 0;
+.workspace__content {
+  min-height: calc(100vh - 2rem);
 }
 
-@media (max-width: 960px) {
-  .workspace-layout {
+@media (max-width: 1024px) {
+  .workspace {
     grid-template-columns: 1fr;
   }
 
-  .workspace-sidebar {
-    border-right: 0;
-    border-bottom: 1px solid #1e293b;
+  .workspace__sidebar,
+  .workspace__content {
+    min-height: auto;
   }
 }

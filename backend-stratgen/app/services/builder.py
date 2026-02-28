@@ -71,7 +71,7 @@ def _compose_game_js(plan: GamePlan, scene_module_js: str) -> str:
         "(function () {\n"
         "  'use strict';\n"
         f"  const PLAN = {plan_json};\n"
-        "  if (!window.Phaser) throw new Error('Phaser runtime was not loaded.');\n\n"
+        "  if (!window.Phaser) throw new Error('Phaser runtime was not loaded.');\n  const width = 960;\n  const height = 600;\n\n"
         "  function showRuntimeError(message) {\n"
         "    const root = document.getElementById('game-root');\n"
         "    if (!root) return;\n"
@@ -164,17 +164,21 @@ def validate_generated_js(js_source: str) -> list[str]:
 
 def _resolve_phaser_runtime(artifacts_root: Path) -> Path:
     resolved_root = artifacts_root.resolve()
+    workspace_root = resolved_root.parent.parent
     candidates = [
         resolved_root.parent / "vendor" / "phaser.min.js",
-        resolved_root.parent.parent / "ggen-frontend" / "node_modules" / "phaser" / "dist" / "phaser.min.js",
+        workspace_root / "ggen-frontend" / "node_modules" / "phaser" / "dist" / "phaser.min.js",
+        workspace_root / "frontend-stratgen" / "node_modules" / "phaser" / "dist" / "phaser.min.js",
+        workspace_root / "frontend" / "node_modules" / "phaser" / "dist" / "phaser.min.js",
     ]
     for candidate in candidates:
         if candidate.exists():
             return candidate
 
     raise FileNotFoundError(
-        "Phaser runtime not found. Install it with `npm i phaser` in ggen-frontend "
-        "or place `phaser.min.js` at ggen-backend/vendor/phaser.min.js."
+        "Phaser runtime not found. Install it with `npm i phaser` in your frontend app "
+        "(for example ggen-frontend or frontend-stratgen), or place `phaser.min.js` "
+        "at backend-stratgen/vendor/phaser.min.js."
     )
 
 
@@ -206,3 +210,4 @@ def build_game_artifact(job_id: str, plan: GamePlan, scene_module_js: str, artif
         game_url=f"/games/{job_id}/index.html",
         plan=plan,
     )
+

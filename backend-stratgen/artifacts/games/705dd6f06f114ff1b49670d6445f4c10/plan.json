@@ -1,0 +1,73 @@
+{
+  "title": "Neon Void Dodger",
+  "genre": "Arcade Survival",
+  "core_loop": "Navigate the player to avoid falling hazards, surviving long enough to accumulate the target score.",
+  "controls": [
+    "ArrowLeft",
+    "ArrowRight",
+    "ArrowUp",
+    "ArrowDown",
+    "R"
+  ],
+  "mechanics": [
+    "dodge",
+    "survive"
+  ],
+  "player": {
+    "speed": 320.0,
+    "radius": 14,
+    "color": "#00ffcc",
+    "health": 1
+  },
+  "enemy_archetypes": [
+    {
+      "id": "void_orb",
+      "movement": "fall",
+      "speed": 180.0,
+      "radius": 12,
+      "color": "#ff0055",
+      "count": 12
+    }
+  ],
+  "player_rules": [
+    "The player can move freely in four directions within the screen bounds.",
+    "Any contact with an enemy results in an immediate game over."
+  ],
+  "enemy_rules": [
+    "Enemies spawn at random horizontal positions above the top edge.",
+    "Enemies travel vertically downwards at a constant speed.",
+    "Enemies wrap back to the top once they pass the bottom edge."
+  ],
+  "physics_rules": {
+    "gravity": 0.0,
+    "max_speed": 400.0,
+    "friction": 0.0
+  },
+  "win_condition": "Survive until the score reaches 50.",
+  "lose_condition": "Collision with any red void orb.",
+  "ui_text": {
+    "title": "Neon Void Dodger",
+    "hint": "Use Arrow Keys to dodge the red orbs. Reach 50 points to win!",
+    "game_over": "Game Over! Press R to restart."
+  },
+  "difficulty": {
+    "enemy_spawn_interval_ms": 400,
+    "enemy_speed": 180.0,
+    "score_per_enemy": 1,
+    "target_score": 50
+  },
+  "scene_graph_objects": [
+    {
+      "id": "player_unit",
+      "kind": "player"
+    },
+    {
+      "id": "hazard_1",
+      "kind": "enemy"
+    },
+    {
+      "id": "background_glow",
+      "kind": "decoration"
+    }
+  ]
+}
