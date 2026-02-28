@@ -1,0 +1,27 @@
+.workspace-layout {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  min-height: 100vh;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.workspace-sidebar {
+  border-right: 1px solid #1e293b;
+  background: #020617;
+}
+
+.workspace-content {
+  min-width: 0;
+}
+
+@media (max-width: 960px) {
+  .workspace-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace-sidebar {
+    border-right: 0;
+    border-bottom: 1px solid #1e293b;
+  }
+}
