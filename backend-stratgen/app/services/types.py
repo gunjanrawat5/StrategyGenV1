@@ -1,11 +1,13 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Literal
+from pathlib import Path
 
-JobStatus = Literal["designing", "building", "testing", "ready", "failed"]
+from app.models import GamePlan
 
 
-@dataclass
-class BuildResult:
-    status: JobStatus
-    game_url: str | None = None
-    error: str | None = None
+@dataclass(slots=True)
+class BuildArtifact:
+    game_dir: Path
+    game_url: str
+    plan: GamePlan

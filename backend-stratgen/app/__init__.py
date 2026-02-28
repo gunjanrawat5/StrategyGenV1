@@ -1,1 +1,1 @@
-"""Application package for backend services."""
+"""Application package for GGen backend."""
