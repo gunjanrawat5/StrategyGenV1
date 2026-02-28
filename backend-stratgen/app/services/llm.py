@@ -11,6 +11,7 @@ import time
 from typing import Protocol
 from urllib import error, request
 
+from openai import OpenAI
 from pydantic import ValidationError
 
 from app.models import DifficultyParams, EnemyArchetype, GamePlan, PhysicsRules, PlayerConfig, SceneObject
@@ -267,7 +268,11 @@ class GeminiPlanGenerator:
     def _generate_raw_code(self, prompt: str, plan: GamePlan, previous_code: str | None = None) -> str:
         plan_json = plan.model_dump_json(indent=2)
         mode_line = "MODIFY EXISTING CODE" if previous_code else "CREATE NEW CODE"
-        previous_code_block = self._truncate_context(previous_code, max_chars=12000) if previous_code else "None"
+        previous_code_block = (
+            self._truncate_context(previous_code, max_chars=getattr(self, "context_chars", 12000))
+            if previous_code
+            else "None"
+        )
         prompt_text = (
             "Generate JavaScript scene module for a Phaser 2D game.\n"
             "Requirements:\n"
@@ -377,7 +382,7 @@ class GeminiPlanGenerator:
             "contents": [{"parts": [{"text": prompt_text}]}],
             "generationConfig": {
                 "temperature": 0.25,
-                "maxOutputTokens": 8192,
+                "maxOutputTokens": getattr(self, "max_tokens", 8192),
             },
         }
         req = request.Request(
@@ -469,3 +474,80 @@ class GeminiPlanGenerator:
                 lines = lines[:-1]
             stripped = "\n".join(lines).strip()
         return stripped
+
+
+class FeatherlessPlanGenerator(GeminiPlanGenerator):
+    def __init__(
+        self,
+        api_key: str,
+        model: str,
+        base_url: str = "https://api.featherless.ai/v1",
+        max_tokens: int = 32768,
+        context_chars: int = 200000,
+        max_retries: int = 2,
+        timeout_seconds: int = 90,
+        http_retries: int = 2,
+    ):
+        self.api_key = api_key
+        self.model = model
+        self.base_url = base_url.rstrip("/")
+        self.max_tokens = max_tokens
+        self.context_chars = context_chars
+        self.max_retries = max_retries
+        self.timeout_seconds = timeout_seconds
+        self.http_retries = http_retries
+        self.endpoint = f"{self.base_url}/chat/completions"
+
+    def _call_model(self, prompt_text: str) -> str:
+        client = OpenAI(
+            base_url=self.base_url,
+            api_key=self.api_key,
+            timeout=self.timeout_seconds,
+        )
+
+        last_error: Exception | None = None
+        for attempt in range(self.http_retries + 1):
+            try:
+                completion = client.chat.completions.create(
+                    model=self.model,
+                    max_tokens=self.max_tokens,
+                    temperature=0.25,
+                    messages=[
+                        {"role": "system", "content": "You are an expert Phaser game generation assistant."},
+                        {"role": "user", "content": prompt_text},
+                    ],
+                )
+                break
+            except Exception as exc:  # noqa: BLE001
+                status_code = getattr(exc, "status_code", None)
+                body = str(exc)
+                if status_code == 403:
+                    raise RuntimeError(
+                        "Featherless returned 403 (unauthorized for this model). "
+                        "This typically means the model is gated and must be unlocked, "
+                        "or it is not available on your current plan. "
+                        f"Model: {self.model}. Response: {body}"
+                    ) from exc
+                if status_code in {429, 500, 502, 503, 504} and attempt < self.http_retries:
+                    time.sleep(0.8 * (2**attempt))
+                    last_error = RuntimeError(f"Featherless API transient HTTP {status_code}: {body}")
+                    continue
+                reason_text = body
+                timeout_like = "timed out" in reason_text.lower()
+                if (timeout_like or attempt < self.http_retries) and attempt < self.http_retries:
+                    time.sleep(0.8 * (2**attempt))
+                    last_error = RuntimeError(f"Featherless API request failed (retrying): {reason_text}")
+                    continue
+                raise RuntimeError(f"Featherless API request failed: {exc}") from exc
+        else:
+            if last_error is not None:
+                raise last_error
+            raise RuntimeError("Featherless API request failed without details.")
+
+        choices = completion.choices
+        if not choices:
+            raise RuntimeError("Featherless API returned no choices.")
+        content = choices[0].message.content
+        if not content:
+            raise RuntimeError("Featherless API returned empty content.")
+        return str(content)

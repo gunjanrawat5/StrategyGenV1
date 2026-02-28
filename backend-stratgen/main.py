@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from app.models import CreateJobRequest, CreateJobResponse, JobResponse
 from app.settings import Settings
 from app.services.jobs import JobService
-from app.services.llm import DeterministicPlanGenerator, GeminiPlanGenerator
+from app.services.llm import DeterministicPlanGenerator, FeatherlessPlanGenerator
 
 BASE_DIR = Path(__file__).resolve().parent
 ARTIFACTS_DIR = BASE_DIR / "artifacts"
@@ -32,13 +32,16 @@ app.add_middleware(
 app.mount("/games", StaticFiles(directory=ARTIFACTS_DIR / "games", html=True), name="games")
 
 settings = Settings.from_env()
-if settings.gemini_api_key:
-    plan_generator = GeminiPlanGenerator(
-        api_key=settings.gemini_api_key,
-        model=settings.gemini_model,
-        max_retries=settings.gemini_max_retries,
-        timeout_seconds=settings.gemini_timeout_seconds,
-        http_retries=settings.gemini_http_retries,
+if settings.featherless_api_key:
+    plan_generator = FeatherlessPlanGenerator(
+        api_key=settings.featherless_api_key,
+        model=settings.featherless_model,
+        base_url=settings.featherless_base_url,
+        max_tokens=settings.featherless_max_tokens,
+        context_chars=settings.featherless_context_chars,
+        max_retries=settings.featherless_max_retries,
+        timeout_seconds=settings.featherless_timeout_seconds,
+        http_retries=settings.featherless_http_retries,
     )
 else:
     plan_generator = DeterministicPlanGenerator()
@@ -48,7 +51,7 @@ job_service = JobService(artifacts_root=ARTIFACTS_DIR, plan_generator=plan_gener
 
 @app.get("/")
 def read_root() -> dict[str, str]:
-    mode = "gemini" if settings.gemini_api_key else "deterministic"
+    mode = "featherless" if settings.featherless_api_key else "deterministic"
     return {"message": "GGen backend is running.", "plan_generator": mode}
 
 
