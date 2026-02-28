@@ -1,1 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+
+# Virtual Environments
+venv/
+ggen/
+env/
+
+# Environment variables
 .env
+
+# Artifacts / generated outputs
+artifacts/
+*.log
+*.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
+
+# Node (if frontend inside repo)
+node_modules/
+.next/
+dist/
+build/

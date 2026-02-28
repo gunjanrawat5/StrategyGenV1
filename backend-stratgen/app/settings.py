@@ -30,20 +30,26 @@ def _load_dotenv() -> None:
 
 @dataclass(slots=True)
 class Settings:
-    gemini_api_key: str | None
-    gemini_model: str
-    gemini_max_retries: int
-    gemini_timeout_seconds: int
-    gemini_http_retries: int
+    featherless_api_key: str | None
+    featherless_model: str
+    featherless_base_url: str
+    featherless_max_tokens: int
+    featherless_context_chars: int
+    featherless_max_retries: int
+    featherless_timeout_seconds: int
+    featherless_http_retries: int
 
     @classmethod
     def from_env(cls) -> Settings:
         _load_dotenv()
-        gemini_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+        featherless_key = os.getenv("FEATHERLESS_API_KEY")
         return cls(
-            gemini_api_key=gemini_key,
-            gemini_model=os.getenv("GEMINI_MODEL", "gemini-2.0-flash"),
-            gemini_max_retries=int(os.getenv("GEMINI_MAX_RETRIES", "2")),
-            gemini_timeout_seconds=int(os.getenv("GEMINI_TIMEOUT_SECONDS", "90")),
-            gemini_http_retries=int(os.getenv("GEMINI_HTTP_RETRIES", "2")),
+            featherless_api_key=featherless_key,
+            featherless_model=os.getenv("FEATHERLESS_MODEL", "Qwen/Qwen2.5-Coder-32B-Instruct"),
+            featherless_base_url=os.getenv("FEATHERLESS_BASE_URL", "https://api.featherless.ai/v1"),
+            featherless_max_tokens=int(os.getenv("FEATHERLESS_MAX_TOKENS", "32768")),
+            featherless_context_chars=int(os.getenv("FEATHERLESS_CONTEXT_CHARS", "200000")),
+            featherless_max_retries=int(os.getenv("FEATHERLESS_MAX_RETRIES", "2")),
+            featherless_timeout_seconds=int(os.getenv("FEATHERLESS_TIMEOUT_SECONDS", "90")),
+            featherless_http_retries=int(os.getenv("FEATHERLESS_HTTP_RETRIES", "2")),
         )
