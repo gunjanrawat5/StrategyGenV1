@@ -1,0 +1,71 @@
+{
+  "title": "Turbo Drift Survival",
+  "genre": "Arcade Survival",
+  "core_loop": "Steer through traffic, dodge oncoming cars, and survive to increase your score.",
+  "controls": [
+    "ArrowLeft",
+    "ArrowRight",
+    "ArrowUp",
+    "ArrowDown",
+    "R"
+  ],
+  "mechanics": [
+    "dodge",
+    "survive"
+  ],
+  "player": {
+    "speed": 320.0,
+    "radius": 18,
+    "color": "#00ffcc",
+    "health": 1
+  },
+  "enemy_archetypes": [
+    {
+      "id": "traffic_car",
+      "movement": "fall",
+      "speed": 280.0,
+      "radius": 18,
+      "color": "#ff4444",
+      "count": 8
+    }
+  ],
+  "player_rules": [
+    "Player movement is 4-directional using arrow keys.",
+    "Player collision with any traffic car causes immediate loss."
+  ],
+  "enemy_rules": [
+    "Traffic cars descend from the top of the screen to the bottom.",
+    "Traffic cars respawn at the top with a random horizontal position after exiting the viewport."
+  ],
+  "physics_rules": {
+    "gravity": 0.0,
+    "max_speed": 500.0,
+    "friction": 0.0
+  },
+  "win_condition": "Reach a score of 50.",
+  "lose_condition": "Collide with any traffic car.",
+  "ui_text": {
+    "title": "Turbo Drift Survival",
+    "hint": "Use Arrow Keys to dodge traffic. Reach 50 points to win! Press R to restart."
+  },
+  "difficulty": {
+    "enemy_spawn_interval_ms": 500,
+    "enemy_speed": 280.0,
+    "score_per_enemy": 1,
+    "target_score": 50
+  },
+  "scene_graph_objects": [
+    {
+      "id": "player_car",
+      "kind": "player"
+    },
+    {
+      "id": "traffic_1",
+      "kind": "enemy"
+    },
+    {
+      "id": "road_line",
+      "kind": "decoration"
+    }
+  ]
+}

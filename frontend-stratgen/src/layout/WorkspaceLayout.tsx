@@ -8,10 +8,10 @@ type WorkspaceLayoutProps = {
 
 function WorkspaceLayout({ sidebar, content }: WorkspaceLayoutProps) {
   return (
-    <div className="workspace-layout">
-      <aside className="workspace-sidebar">{sidebar}</aside>
-      <main className="workspace-content">{content}</main>
-    </div>
+    <main className="workspace">
+      <aside className="workspace__sidebar">{sidebar}</aside>
+      <section className="workspace__content">{content}</section>
+    </main>
   )
 }
 

@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Grid Tactician</title>
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      background: #01030b;
+      color: #d9faff;
+      font-family: system-ui, sans-serif;
+      overflow: hidden;
+    }
+    #game-root {
+      width: 100%;
+      height: 100%;
+    }
+    #game-root canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div id="game-root"></div>
+  <script src="./phaser.min.js"></script>
+  <script src="./game.js"></script>
+</body>
+</html>
