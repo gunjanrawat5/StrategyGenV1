@@ -42,11 +42,15 @@ class Settings:
     @classmethod
     def from_env(cls) -> Settings:
         _load_dotenv()
-        featherless_key = os.getenv("FEATHERLESS_API_KEY")
+        featherless_key = os.getenv("LLM_API_KEY") or os.getenv("FEATHERLESS_API_KEY")
+        base_url = os.getenv("LLM_BASE_URL") or os.getenv("FEATHERLESS_BASE_URL", "https://api.featherless.ai/v1")
+        # Allow passing either OpenAI-compatible base URL (.../v1) or full completions endpoint (.../v1/chat/completions).
+        if base_url.rstrip("/").endswith("/chat/completions"):
+            base_url = base_url[: -len("/chat/completions")]
         return cls(
             featherless_api_key=featherless_key,
-            featherless_model=os.getenv("FEATHERLESS_MODEL", "Qwen/Qwen2.5-Coder-32B-Instruct"),
-            featherless_base_url=os.getenv("FEATHERLESS_BASE_URL", "https://api.featherless.ai/v1"),
+            featherless_model=os.getenv("LLM_MODEL") or os.getenv("FEATHERLESS_MODEL", "Qwen/Qwen2.5-Coder-32B-Instruct"),
+            featherless_base_url=base_url,
             featherless_max_tokens=int(os.getenv("FEATHERLESS_MAX_TOKENS", "32768")),
             featherless_context_chars=int(os.getenv("FEATHERLESS_CONTEXT_CHARS", "200000")),
             featherless_max_retries=int(os.getenv("FEATHERLESS_MAX_RETRIES", "2")),
