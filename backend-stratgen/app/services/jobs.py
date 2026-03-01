@@ -108,6 +108,20 @@ class JobService:
             self._set_status(job, JobStatus.FAILED)
 
     def _apply_shooter_prompt_edits(self, previous_code: str, prompt: str) -> str:
+        physics_context = self._extract_shooter_physics_context(previous_code)
+        try:
+            with self._llm_call_semaphore:
+                edited_by_model = self.plan_generator.apply_prompt_to_shooter_source(
+                    prompt=prompt,
+                    source_code=previous_code,
+                    physics_context=physics_context,
+                )
+            if edited_by_model and edited_by_model.strip():
+                return edited_by_model
+        except Exception:
+            # Fall back to deterministic local edits if model call fails or returns unsafe output.
+            pass
+
         edited = previous_code
         prompt_l = prompt.lower()
 
@@ -172,6 +186,37 @@ class JobService:
             edited = re.sub(r"setMaxSpeed\(\s*\d+\s*\)", f"setMaxSpeed({updated})", edited, count=1)
 
         return edited
+
+    @staticmethod
+    def _extract_shooter_physics_context(source_code: str) -> str:
+        keywords = (
+            "physics",
+            "setVelocity",
+            "setAcceleration",
+            "setMaxSpeed",
+            "setDrag",
+            "setBounce",
+            "setCollideWorldBounds",
+            "collider",
+            "overlap",
+            "shotCooldownMs",
+            "projectile",
+            "body.",
+            "world.setBounds",
+        )
+        lines = source_code.splitlines()
+        selected: list[str] = []
+        for line in lines:
+            if any(keyword in line for keyword in keywords):
+                selected.append(line)
+
+        # Keep context rich but bounded for token cost.
+        context = "\n".join(selected)
+        if len(context) > 40000:
+            head = context[:20000]
+            tail = context[-20000:]
+            context = f"{head}\n// ... physics context truncated ...\n{tail}"
+        return context
 
     @staticmethod
     def _extract_speed_factor(prompt_l: str, subject: str) -> float | None:

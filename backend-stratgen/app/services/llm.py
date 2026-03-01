@@ -24,6 +24,9 @@ class PlanGenerator(Protocol):
     def generate_game_code(self, prompt: str, plan: GamePlan, previous_code: str | None = None) -> str:
         ...
 
+    def apply_prompt_to_shooter_source(self, prompt: str, source_code: str, physics_context: str) -> str:
+        ...
+
 
 class DeterministicPlanGenerator:
     def generate_plan(self, prompt: str, previous_plan: GamePlan | None = None) -> GamePlan:
@@ -146,6 +149,9 @@ function createGeneratedScene(Phaser, PLAN) {
 }
 """
 
+    def apply_prompt_to_shooter_source(self, prompt: str, source_code: str, physics_context: str) -> str:
+        return source_code
+
     @staticmethod
     def _extract_title(prompt: str) -> str:
         stripped = " ".join(prompt.split())
@@ -192,6 +198,32 @@ class GeminiPlanGenerator:
             raw_code = self._repair_raw_code(prompt, plan, previous_code, raw_code, errors)
             errors = self._validate_scene_module(raw_code)
         raise RuntimeError("Unexpected code generation state.")
+
+    def apply_prompt_to_shooter_source(self, prompt: str, source_code: str, physics_context: str) -> str:
+        source_context = self._truncate_context(source_code, max_chars=getattr(self, "context_chars", 200000))
+        physics_context_block = self._truncate_context(
+            physics_context,
+            max_chars=max(4000, getattr(self, "context_chars", 200000) // 2),
+        )
+        edit_prompt = (
+            "You are editing an existing Phaser 3 TypeScript shooter scene file.\n"
+            "Return only the FULL updated source file content. No markdown.\n\n"
+            "Hard constraints:\n"
+            "- Keep the same overall architecture and multiplayer WebSocket flow intact.\n"
+            "- Keep class/exports/function names compatible with existing code.\n"
+            "- Do not remove or rename message types used by multiplayer sync.\n"
+            "- Prioritize gameplay and physics mechanic edits requested by the user.\n"
+            "- Preserve unrelated logic and rendering code.\n\n"
+            f"User edit request:\n{prompt}\n\n"
+            f"Physics-related context from current file:\n{physics_context_block}\n\n"
+            f"Current full source file:\n{source_context}\n"
+        )
+        edited = self._extract_javascript(self._call_model(edit_prompt)).strip()
+        if not edited:
+            raise RuntimeError("Model returned empty shooter source edit.")
+        if "class GameScene" not in edited:
+            raise RuntimeError("Model output missing GameScene class; refusing unsafe overwrite.")
+        return edited
 
     def _generate_raw_plan(self, prompt: str, previous_plan: GamePlan | None = None) -> str:
         schema = json.dumps(GamePlan.model_json_schema(), indent=2)
