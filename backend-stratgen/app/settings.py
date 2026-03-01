@@ -34,6 +34,7 @@ class Settings:
     featherless_model: str
     featherless_base_url: str
     featherless_max_tokens: int
+    featherless_context_window: int
     featherless_context_chars: int
     featherless_max_retries: int
     featherless_timeout_seconds: int
@@ -52,6 +53,7 @@ class Settings:
             featherless_model=os.getenv("LLM_MODEL") or os.getenv("FEATHERLESS_MODEL", "Qwen/Qwen2.5-Coder-32B-Instruct"),
             featherless_base_url=base_url,
             featherless_max_tokens=int(os.getenv("FEATHERLESS_MAX_TOKENS", "32768")),
+            featherless_context_window=int(os.getenv("FEATHERLESS_CONTEXT_WINDOW", "32768")),
             featherless_context_chars=int(os.getenv("FEATHERLESS_CONTEXT_CHARS", "200000")),
             featherless_max_retries=int(os.getenv("FEATHERLESS_MAX_RETRIES", "2")),
             featherless_timeout_seconds=int(os.getenv("FEATHERLESS_TIMEOUT_SECONDS", "90")),

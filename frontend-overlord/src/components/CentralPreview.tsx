@@ -1,11 +1,15 @@
 "use client";
 
-import { MoreVertical, Play, Pause, Maximize2 } from "lucide-react";
-import { useState } from "react";
+import { MoreVertical, Maximize2 } from "lucide-react";
 
-export default function CentralPreview() {
-  const [isPlaying, setIsPlaying] = useState(false);
+interface CentralPreviewProps {
+  gameUrl: string | null;
+  isGenerating: boolean;
+  statusText: string;
+  error: string | null;
+}
 
+export default function CentralPreview({ gameUrl, isGenerating, statusText, error }: CentralPreviewProps) {
   return (
     <div className="flex-1 flex flex-col bg-[#1E1E1E] h-full">
       {/* Top Bar */}
@@ -15,16 +19,6 @@ export default function CentralPreview() {
           <span className="text-sm font-medium text-white">Live Preview (Level 1)</span>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsPlaying(!isPlaying)}
-            className="p-1.5 hover:bg-[#2D3748] rounded-lg transition-colors"
-          >
-            {isPlaying ? (
-              <Pause className="w-4 h-4 text-[#00D4FF]" />
-            ) : (
-              <Play className="w-4 h-4 text-[#00D4FF]" />
-            )}
-          </button>
           <button className="p-1.5 hover:bg-[#2D3748] rounded-lg transition-colors">
             <Maximize2 className="w-4 h-4 text-[#9CA3AF]" />
           </button>
@@ -36,6 +30,15 @@ export default function CentralPreview() {
 
       {/* Game Preview Window */}
       <div className="flex-1 relative overflow-hidden">
+        {gameUrl ? (
+          <iframe
+            title="Generated Game"
+            src={gameUrl}
+            className="w-full h-full border-0"
+            allow="fullscreen"
+          />
+        ) : (
+          <>
         {/* Cyberpunk cityscape background simulation */}
         <div 
           className="absolute inset-0"
@@ -84,16 +87,8 @@ export default function CentralPreview() {
               <div className="text-sm text-[#9CA3AF]">
                 (HTML5/WebGL Canvas)
               </div>
-              
-              {/* Play button overlay */}
-              {!isPlaying && (
-                <button 
-                  onClick={() => setIsPlaying(true)}
-                  className="mt-6 w-16 h-16 rounded-full bg-[#3B82F6] hover:bg-[#3B82F6]/80 flex items-center justify-center transition-all hover:scale-110"
-                >
-                  <Play className="w-8 h-8 text-white ml-1" />
-                </button>
-              )}
+              <div className="text-xs text-[#9CA3AF] mt-2">{statusText}</div>
+              {error && <div className="text-xs text-red-400 mt-2 max-w-lg">{error}</div>}
             </div>
           </div>
 
@@ -123,6 +118,8 @@ export default function CentralPreview() {
             </div>
           </div>
         </div>
+          </>
+        )}
       </div>
     </div>
   );
