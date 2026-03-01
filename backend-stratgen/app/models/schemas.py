@@ -27,3 +27,19 @@ class StrategyResponse(BaseModel):
     objective_summary: str
     steps: List[StrategyStep]
     estimated_timeline: str
+
+# --- JOB SCHEMAS ---
+
+class GamePlan(BaseModel):
+    """Represents a game plan."""
+    title: str
+
+class JobCreateRequest(BaseModel):
+    """Request to create a job."""
+    title: str
+
+class JobResponse(BaseModel):
+    """Response containing job information."""
+    id: str
+    status: str
+    plan: Optional[GamePlan] = None

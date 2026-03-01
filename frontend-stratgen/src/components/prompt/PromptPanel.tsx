@@ -1,86 +1,89 @@
-import './PromptPanel.css'
-import { useState } from 'react'
-import type { GenerationMode, PromptMessage } from '../../types/jobs'
+import './PromptPanel.css';
+import { useState } from 'react';
 
 type PromptPanelProps = {
-  messages: PromptMessage[]
-  isSubmitting: boolean
-  statusText: string
-  error: string | null
-  generationMode: GenerationMode
-  canModify: boolean
-  currentGameId: string | null
-  onModeChange: (mode: GenerationMode) => void
-  onSubmitPrompt: (prompt: string, mode: GenerationMode) => void
-}
+  onGenerate: (objective: string, context: string, useAdvanced: boolean, temperature: number) => void;
+  loading: boolean;
+};
 
-function PromptPanel({
-  messages,
-  isSubmitting,
-  statusText,
-  error,
-  generationMode,
-  canModify,
-  currentGameId,
-  onModeChange,
-  onSubmitPrompt,
-}: PromptPanelProps) {
-  const [prompt, setPrompt] = useState('')
+export default function PromptPanel({ onGenerate, loading }: PromptPanelProps) {
+  const [objective, setObjective] = useState('');
+  const [context, setContext] = useState('');
+  const [useAdvanced, setUseAdvanced] = useState(false);
+  const [temperature, setTemperature] = useState(0.7);
 
-  const submit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    onSubmitPrompt(prompt, generationMode)
-    setPrompt('')
-  }
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (objective.trim()) {
+      onGenerate(objective, context, useAdvanced, temperature);
+    }
+  };
 
   return (
     <section className="prompt-panel">
-      <header className="prompt-panel__header">
-        <h2>Prompt</h2>
-        <p>{statusText}</p>
-      </header>
+      <div className="window-frame">
+        <div className="window-header">
+          <div className="window-controls">
+            <span className="control-dot red"></span>
+            <span className="control-dot yellow"></span>
+            <span className="control-dot green"></span>
+          </div>
+          <div className="window-title">StrategyGen UI</div>
+          <div className="window-actions">
+            <span>−</span>
+            <span>□</span>
+            <span>×</span>
+          </div>
+        </div>
 
-      <div className="prompt-panel__mode">
-        <button
-          type="button"
-          className={generationMode === 'new' ? 'active' : ''}
-          onClick={() => onModeChange('new')}
-        >
-          New
-        </button>
-        <button
-          type="button"
-          className={generationMode === 'modify' ? 'active' : ''}
-          disabled={!canModify}
-          onClick={() => onModeChange('modify')}
-        >
-          Modify
-        </button>
+        <div className="window-content">
+          <div className="panel-header">
+            <div className="header-icon">◈</div>
+            <h2>StrategyGen UI</h2>
+          </div>
+
+          <form onSubmit={handleSubmit} className="prompt-form">
+            <div className="form-field">
+              <label>Strategic Objective</label>
+              <textarea
+                value={objective}
+                onChange={(e) => setObjective(e.target.value)}
+                placeholder=""
+                rows={3}
+                disabled={loading}
+              />
+            </div>
+
+            <div className="form-field">
+              <label>Context</label>
+              <textarea
+                value={context}
+                onChange={(e) => setContext(e.target.value)}
+                placeholder=""
+                rows={3}
+                disabled={loading}
+              />
+            </div>
+
+            <div className="form-field-inline">
+              <label className="toggle-label">
+                <input
+                  type="checkbox"
+                  checked={useAdvanced}
+                  onChange={(e) => setUseAdvanced(e.target.checked)}
+                  disabled={loading}
+                />
+                <span className="toggle-switch"></span>
+                <span className="toggle-text">Featherless/Advanced AI</span>
+              </label>
+            </div>
+
+            <button type="submit" className="gen-button" disabled={loading || !objective.trim()}>
+              {loading ? 'GENERATING...' : 'GEN'}
+            </button>
+          </form>
+        </div>
       </div>
-
-      {currentGameId ? <p className="prompt-panel__sub">Current game id: {currentGameId}</p> : null}
-
-      <form onSubmit={submit} className="prompt-panel__form">
-        <textarea
-          value={prompt}
-          onChange={(event) => setPrompt(event.target.value)}
-          rows={5}
-          placeholder="Describe the game to generate..."
-        />
-        <button type="submit" disabled={isSubmitting || !prompt.trim()}>
-          {isSubmitting ? 'Generating...' : 'Generate'}
-        </button>
-      </form>
-
-      {error ? <p className="prompt-panel__error">{error}</p> : null}
-
-      <ul className="prompt-panel__history">
-        {messages.map((message) => (
-          <li key={message.id}>{message.prompt}</li>
-        ))}
-      </ul>
     </section>
-  )
+  );
 }
-
-export default PromptPanel
