@@ -483,6 +483,7 @@ class FeatherlessPlanGenerator(GeminiPlanGenerator):
         model: str,
         base_url: str = "https://api.featherless.ai/v1",
         max_tokens: int = 32768,
+        context_window: int = 32768,
         context_chars: int = 200000,
         max_retries: int = 2,
         timeout_seconds: int = 90,
@@ -492,6 +493,7 @@ class FeatherlessPlanGenerator(GeminiPlanGenerator):
         self.model = model
         self.base_url = base_url.rstrip("/")
         self.max_tokens = max_tokens
+        self.context_window = context_window
         self.context_chars = context_chars
         self.max_retries = max_retries
         self.timeout_seconds = timeout_seconds
@@ -499,6 +501,9 @@ class FeatherlessPlanGenerator(GeminiPlanGenerator):
         self.endpoint = f"{self.base_url}/chat/completions"
 
     def _call_model(self, prompt_text: str) -> str:
+        system_prompt = "You are an expert Phaser game generation assistant."
+        prompt_text, output_tokens = self._fit_prompt_and_output_budget(system_prompt, prompt_text)
+
         client = OpenAI(
             base_url=self.base_url,
             api_key=self.api_key,
@@ -510,10 +515,10 @@ class FeatherlessPlanGenerator(GeminiPlanGenerator):
             try:
                 completion = client.chat.completions.create(
                     model=self.model,
-                    max_tokens=self.max_tokens,
+                    max_tokens=output_tokens,
                     temperature=0.25,
                     messages=[
-                        {"role": "system", "content": "You are an expert Phaser game generation assistant."},
+                        {"role": "system", "content": system_prompt},
                         {"role": "user", "content": prompt_text},
                     ],
                 )
@@ -551,3 +556,36 @@ class FeatherlessPlanGenerator(GeminiPlanGenerator):
         if not content:
             raise RuntimeError("Featherless API returned empty content.")
         return str(content)
+
+    @staticmethod
+    def _estimate_tokens(text: str) -> int:
+        # Fast approximation for budgeting that works across providers.
+        return max(1, (len(text) + 3) // 4)
+
+    def _fit_prompt_and_output_budget(self, system_prompt: str, prompt_text: str) -> tuple[str, int]:
+        min_output_tokens = 512
+        reserved_tokens = 128
+        max_input_tokens = self.context_window - min_output_tokens - reserved_tokens
+
+        if max_input_tokens <= 0:
+            raise RuntimeError(
+                "Invalid context window configuration. Increase FEATHERLESS_CONTEXT_WINDOW "
+                "or reduce FEATHERLESS_MAX_TOKENS."
+            )
+
+        combined = f"{system_prompt}\n{prompt_text}"
+        combined_tokens = self._estimate_tokens(combined)
+        if combined_tokens > max_input_tokens:
+            prompt_budget_chars = max(800, max_input_tokens * 4 - len(system_prompt) - 1)
+            prompt_text = self._truncate_context(prompt_text, max_chars=prompt_budget_chars)
+            combined = f"{system_prompt}\n{prompt_text}"
+            combined_tokens = self._estimate_tokens(combined)
+
+        available_output = self.context_window - combined_tokens - reserved_tokens
+        if available_output < min_output_tokens:
+            raise RuntimeError(
+                "Prompt is too large for model context window after truncation. "
+                "Reduce prompt size or FEATHERLESS_CONTEXT_CHARS."
+            )
+
+        return prompt_text, min(self.max_tokens, available_output)

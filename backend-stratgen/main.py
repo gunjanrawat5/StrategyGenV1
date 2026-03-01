@@ -38,6 +38,7 @@ if settings.featherless_api_key:
         model=settings.featherless_model,
         base_url=settings.featherless_base_url,
         max_tokens=settings.featherless_max_tokens,
+        context_window=settings.featherless_context_window,
         context_chars=settings.featherless_context_chars,
         max_retries=settings.featherless_max_retries,
         timeout_seconds=settings.featherless_timeout_seconds,

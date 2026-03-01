@@ -169,6 +169,7 @@ def _resolve_phaser_runtime(artifacts_root: Path) -> Path:
         resolved_root.parent / "vendor" / "phaser.min.js",
         workspace_root / "ggen-frontend" / "node_modules" / "phaser" / "dist" / "phaser.min.js",
         workspace_root / "frontend-stratgen" / "node_modules" / "phaser" / "dist" / "phaser.min.js",
+        workspace_root / "frontend-overlord" / "node_modules" / "phaser" / "dist" / "phaser.min.js",
         workspace_root / "frontend" / "node_modules" / "phaser" / "dist" / "phaser.min.js",
     ]
     for candidate in candidates:
@@ -177,7 +178,7 @@ def _resolve_phaser_runtime(artifacts_root: Path) -> Path:
 
     raise FileNotFoundError(
         "Phaser runtime not found. Install it with `npm i phaser` in your frontend app "
-        "(for example ggen-frontend or frontend-stratgen), or place `phaser.min.js` "
+        "(for example frontend-overlord, ggen-frontend, or frontend-stratgen), or place `phaser.min.js` "
         "at backend-stratgen/vendor/phaser.min.js."
     )
 
