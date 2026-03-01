@@ -9,9 +9,9 @@ export default function Header() {
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2">
           <Zap className="w-6 h-6 text-[#00D4FF]" />
-          <h1 className="text-xl font-bold text-white tracking-wider">OVERLORD</h1>
+          <h1 className="text-xl font-bold text-white tracking-wider">Overlord Creative Studio</h1>
         </div>
-        <span className="text-sm text-[#9CA3AF] font-light">Creator Studio</span>
+        <span className="text-sm text-[#9CA3AF] font-light">Creative Studio</span>
       </div>
 
       {/* Right: Status Indicator */}

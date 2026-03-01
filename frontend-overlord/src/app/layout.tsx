@@ -14,15 +14,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Overlord - Creator Studio",
+  title: "Overlord Creative Studio",
   description: "Advanced game development dashboard powered by AI. Create, iterate, and deploy games with intelligent assistance.",
-  keywords: ["Overlord", "Game Development", "Creator Studio", "AI", "Next.js", "TypeScript"],
+  keywords: ["Overlord Creative Studio", "Game Development", "Creative Studio", "AI", "Next.js", "TypeScript"],
   authors: [{ name: "Overlord Team" }],
   icons: {
     icon: "/favicon.ico",
   },
   openGraph: {
-    title: "Overlord - Creator Studio",
+    title: "Overlord Creative Studio",
     description: "Advanced game development dashboard powered by AI",
     type: "website",
   },
