@@ -2,7 +2,10 @@
 const http = require("http");
 const https = require("https");
 const next = require("next");
+const { loadEnvConfig } = require("@next/env");
 const { WebSocketServer, WebSocket } = require("ws");
+
+loadEnvConfig(process.cwd());
 
 const dev = process.env.NODE_ENV !== "production";
 const host = process.env.HOST || "0.0.0.0";

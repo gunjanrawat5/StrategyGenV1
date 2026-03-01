@@ -48,7 +48,11 @@ if settings.featherless_api_key:
 else:
     plan_generator = DeterministicPlanGenerator()
 
-job_service = JobService(artifacts_root=ARTIFACTS_DIR, plan_generator=plan_generator)
+job_service = JobService(
+    artifacts_root=ARTIFACTS_DIR,
+    plan_generator=plan_generator,
+    max_concurrent_llm_requests=settings.llm_max_concurrent_requests,
+)
 shooter_realtime_server = ShooterRealtimeServer()
 
 

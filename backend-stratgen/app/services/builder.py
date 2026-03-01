@@ -285,3 +285,69 @@ def build_shooter_preset_artifact(
         plan=plan,
     )
 
+
+def _extract_shooter_tunables_from_source(source_game_code: str) -> dict[str, int]:
+    tunables: dict[str, int] = {}
+
+    cooldown_match = re.search(r"shotCooldownMs\s*=\s*(\d+)", source_game_code)
+    if cooldown_match:
+        tunables["shot_cooldown_ms"] = int(cooldown_match.group(1))
+
+    projectile_speed_match = re.search(r"setVelocity\([^*]*\*\s*(\d+)\s*,\s*[^*]*\*\s*(\d+)\)", source_game_code)
+    if projectile_speed_match:
+        tunables["projectile_speed"] = int(projectile_speed_match.group(1))
+
+    max_speed_match = re.search(r"setMaxSpeed\(\s*(\d+)\s*\)", source_game_code)
+    if max_speed_match:
+        tunables["player_max_speed"] = int(max_speed_match.group(1))
+
+    accel_match = re.search(r"setAccelerationX\(\s*-(\d+)\s*\)", source_game_code)
+    if accel_match:
+        tunables["player_accel"] = int(accel_match.group(1))
+
+    return tunables
+
+
+def _apply_shooter_tunables_to_bundle(bundle_text: str, tunables: dict[str, int]) -> str:
+    updated = bundle_text
+    if "shot_cooldown_ms" in tunables:
+        updated = re.sub(r"this\.shotCooldownMs=\d+", f"this.shotCooldownMs={tunables['shot_cooldown_ms']}", updated)
+    if "projectile_speed" in tunables:
+        speed = tunables["projectile_speed"]
+        updated = re.sub(
+            r"setVelocity\(([A-Za-z])\.x\*\d+,([A-Za-z])\.y\*\d+\)",
+            rf"setVelocity(\1.x*{speed},\2.y*{speed})",
+            updated,
+        )
+    if "player_max_speed" in tunables:
+        updated = re.sub(r"setMaxSpeed\(\d+\)", f"setMaxSpeed({tunables['player_max_speed']})", updated)
+    if "player_accel" in tunables:
+        accel = tunables["player_accel"]
+        updated = re.sub(r"setAccelerationX\(-\d+\)", f"setAccelerationX(-{accel})", updated)
+        updated = re.sub(r"setAccelerationX\(\d+\)", f"setAccelerationX({accel})", updated)
+        updated = re.sub(r"setAccelerationY\(-\d+\)", f"setAccelerationY(-{accel})", updated)
+        updated = re.sub(r"setAccelerationY\(\d+\)", f"setAccelerationY({accel})", updated)
+    return updated
+
+
+def build_shooter_modified_artifact(
+    job_id: str,
+    plan: GamePlan,
+    artifacts_root: Path,
+    source_game_code: str,
+) -> BuildArtifact:
+    artifact = build_shooter_preset_artifact(
+        job_id=job_id,
+        plan=plan,
+        artifacts_root=artifacts_root,
+        source_game_code=source_game_code,
+    )
+
+    tunables = _extract_shooter_tunables_from_source(source_game_code)
+    for js_bundle in (artifact.game_dir / "assets").glob("*.js"):
+        bundle_text = js_bundle.read_text(encoding="utf-8")
+        bundle_text = _apply_shooter_tunables_to_bundle(bundle_text, tunables)
+        js_bundle.write_text(bundle_text, encoding="utf-8")
+
+    return artifact
+

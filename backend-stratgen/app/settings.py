@@ -24,7 +24,7 @@ def _load_dotenv() -> None:
             key, value = line.split("=", 1)
             key = key.strip()
             value = value.strip().strip('"').strip("'")
-            if key and key not in os.environ:
+            if key and (key not in os.environ or os.environ.get(key, "") == ""):
                 os.environ[key] = value
 
 
@@ -39,6 +39,7 @@ class Settings:
     featherless_max_retries: int
     featherless_timeout_seconds: int
     featherless_http_retries: int
+    llm_max_concurrent_requests: int
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -58,4 +59,5 @@ class Settings:
             featherless_max_retries=int(os.getenv("FEATHERLESS_MAX_RETRIES", "2")),
             featherless_timeout_seconds=int(os.getenv("FEATHERLESS_TIMEOUT_SECONDS", "90")),
             featherless_http_retries=int(os.getenv("FEATHERLESS_HTTP_RETRIES", "2")),
+            llm_max_concurrent_requests=max(1, int(os.getenv("LLM_MAX_CONCURRENT_REQUESTS", "4"))),
         )
