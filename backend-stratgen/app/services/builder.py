@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -203,6 +204,78 @@ def build_game_artifact(job_id: str, plan: GamePlan, scene_module_js: str, artif
     slug = _slugify(plan.title)
     (game_dir / "metadata.json").write_text(
         json.dumps({"job_id": job_id, "slug": slug, "title": plan.title}, indent=2),
+        encoding="utf-8",
+    )
+
+    return BuildArtifact(
+        game_dir=game_dir,
+        game_url=f"/games/{job_id}/index.html",
+        plan=plan,
+    )
+
+
+def build_shooter_preset_artifact(
+    job_id: str,
+    plan: GamePlan,
+    artifacts_root: Path,
+    source_game_code: str,
+) -> BuildArtifact:
+    game_dir = artifacts_root / "games" / job_id
+    game_dir.mkdir(parents=True, exist_ok=True)
+
+    backend_root = artifacts_root.resolve().parent
+    preset_dist = backend_root / "presets" / "2dShooter" / "dist"
+    preset_assets = backend_root / "presets" / "2dShooter" / "assets"
+    if not preset_dist.exists():
+        raise FileNotFoundError(
+            "Shooter preset dist not found at backend-stratgen/presets/2dShooter/dist. "
+            "Build and copy the 2dShooter dist first."
+        )
+    if not preset_assets.exists():
+        raise FileNotFoundError(
+            "Shooter preset assets not found at backend-stratgen/presets/2dShooter/assets."
+        )
+
+    shutil.copytree(preset_dist, game_dir, dirs_exist_ok=True)
+    shutil.copytree(preset_assets, game_dir / "assets", dirs_exist_ok=True)
+    shutil.copytree(preset_assets, game_dir / "src" / "assets", dirs_exist_ok=True)
+
+    index_path = game_dir / "index.html"
+    if not index_path.exists():
+        raise FileNotFoundError("Shooter preset missing index.html")
+
+    index_html = index_path.read_text(encoding="utf-8")
+    # Ensure built assets resolve under /games/{job_id}/ instead of absolute /assets.
+    index_html = index_html.replace('src="/assets/', 'src="./assets/')
+    index_html = index_html.replace('href="/assets/', 'href="./assets/')
+    shooter_ws_url = os.getenv("SHOOTER_WS_URL", "").strip()
+    if shooter_ws_url:
+        ws_script = (
+            "<script>"
+            f"window.__SHOOTER_WS_URL__={json.dumps(shooter_ws_url)};"
+            "</script>"
+        )
+        index_html = index_html.replace("</body>", f"  {ws_script}\n</body>")
+    index_path.write_text(index_html, encoding="utf-8")
+
+    # Wire preset sprite assets into the minified bundle references.
+    for js_bundle in (game_dir / "assets").glob("*.js"):
+        bundle_text = js_bundle.read_text(encoding="utf-8")
+        bundle_text = bundle_text.replace("src/assets/ducky_2_spritesheet.png", "assets/ducky_2_spritesheet.png")
+        bundle_text = bundle_text.replace("src/assets/ducky_3_spritesheet.png", "assets/ducky_3_spritesheet.png")
+        bundle_text = bundle_text.replace(
+            'function Lt(){return`${window.location.protocol==="https:"?"wss:":"ws:"}//${window.location.host}/ws`}',
+            'function Lt(){if(window.__SHOOTER_WS_URL__){return window.__SHOOTER_WS_URL__}return`${window.location.protocol==="https:"?"wss:":"ws:"}//${window.location.host}/ws`}',
+        )
+        js_bundle.write_text(bundle_text, encoding="utf-8")
+
+    # Keep plan/code artifacts so later modify flows can use this preset as a base game.
+    (game_dir / "plan.json").write_text(plan.model_dump_json(indent=2), encoding="utf-8")
+    (game_dir / "game.js").write_text(source_game_code, encoding="utf-8")
+
+    slug = _slugify(plan.title)
+    (game_dir / "metadata.json").write_text(
+        json.dumps({"job_id": job_id, "slug": slug, "title": plan.title, "preset": "2dShooter"}, indent=2),
         encoding="utf-8",
     )
 

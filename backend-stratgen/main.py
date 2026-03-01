@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -10,6 +10,7 @@ from app.models import CreateJobRequest, CreateJobResponse, JobResponse
 from app.settings import Settings
 from app.services.jobs import JobService
 from app.services.llm import DeterministicPlanGenerator, FeatherlessPlanGenerator
+from app.services.shooter_ws import ShooterRealtimeServer
 
 BASE_DIR = Path(__file__).resolve().parent
 ARTIFACTS_DIR = BASE_DIR / "artifacts"
@@ -48,6 +49,7 @@ else:
     plan_generator = DeterministicPlanGenerator()
 
 job_service = JobService(artifacts_root=ARTIFACTS_DIR, plan_generator=plan_generator)
+shooter_realtime_server = ShooterRealtimeServer()
 
 
 @app.get("/")
@@ -82,3 +84,8 @@ def get_job(job_id: str) -> JobResponse:
         game_url=job.game_url,
         plan=job.plan,
     )
+
+
+@app.websocket("/ws")
+async def shooter_ws(websocket: WebSocket) -> None:
+    await shooter_realtime_server.handle_connection(websocket)

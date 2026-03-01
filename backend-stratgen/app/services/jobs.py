@@ -9,8 +9,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.models import GamePlan, GenerationMode, JobStatus
-from app.services.builder import build_game_artifact, extract_scene_module_from_game_js
+from app.models import DifficultyParams, EnemyArchetype, GamePlan, GenerationMode, JobStatus, PhysicsRules, PlayerConfig, SceneObject
+from app.services.builder import build_game_artifact, build_shooter_preset_artifact, extract_scene_module_from_game_js
 from app.services.llm import PlanGenerator
 
 
@@ -61,6 +61,24 @@ class JobService:
         job = self._jobs[job_id]
         try:
             self._set_status(job, JobStatus.DESIGNING)
+            if self._is_shooter_preset_prompt(job.prompt):
+                plan = self._build_shooter_preset_plan(job.prompt)
+                self._set_status(job, JobStatus.BUILDING)
+                source_game_code = self._load_shooter_preset_source_code()
+                artifact = build_shooter_preset_artifact(
+                    job_id=job_id,
+                    plan=plan,
+                    artifacts_root=self.artifacts_root,
+                    source_game_code=source_game_code,
+                )
+                self._set_status(job, JobStatus.TESTING)
+                self._run_preset_smoke_checks(artifact.game_dir)
+
+                job.plan = plan
+                job.game_url = artifact.game_url
+                self._set_status(job, JobStatus.READY)
+                return
+
             previous_plan = self._load_game_plan(job.base_game_id) if job.mode == GenerationMode.MODIFY else None
             plan = self.plan_generator.generate_plan(job.prompt, previous_plan=previous_plan)
 
@@ -87,6 +105,60 @@ class JobService:
         except Exception as exc:  # noqa: BLE001
             job.error = str(exc)
             self._set_status(job, JobStatus.FAILED)
+
+    @staticmethod
+    def _is_shooter_preset_prompt(prompt: str) -> bool:
+        return "shooter" in prompt.lower()
+
+    @staticmethod
+    def _build_shooter_preset_plan(prompt: str) -> GamePlan:
+        return GamePlan(
+            title="2D Shooter Preset",
+            genre="Arena Shooter",
+            core_loop="Move, aim, and shoot projectiles in a top-down arena.",
+            controls=["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "W", "A", "S", "D"],
+            mechanics=["shoot", "survive", "dodge"],
+            player=PlayerConfig(speed=280, radius=14, color="#4cc9f0", health=10),
+            enemy_archetypes=[
+                EnemyArchetype(
+                    id="ducky_opponent",
+                    movement="chase",
+                    speed=260,
+                    radius=14,
+                    color="#f94144",
+                    count=1,
+                )
+            ],
+            player_rules=[
+                "Players move using arrow keys.",
+                "Projectiles are fired using WASD.",
+                "Health decreases on projectile hit.",
+            ],
+            enemy_rules=["The opponent mirrors networked player movement in multiplayer mode."],
+            physics_rules=PhysicsRules(gravity=0, max_speed=320, friction=0.12),
+            win_condition="Outlast the opposing player in the arena.",
+            lose_condition="Health reaches zero.",
+            ui_text={"title": "2D Arena Shooter"},
+            difficulty=DifficultyParams(
+                enemy_spawn_interval_ms=1000,
+                enemy_speed=260,
+                score_per_enemy=1,
+                target_score=10,
+            ),
+            scene_graph_objects=[
+                SceneObject(id="player_1", kind="player"),
+                SceneObject(id="player_2", kind="enemy"),
+                SceneObject(id="projectile", kind="projectile"),
+                SceneObject(id="arena_obstacle", kind="decoration"),
+            ],
+        )
+
+    def _load_shooter_preset_source_code(self) -> str:
+        backend_root = self.artifacts_root.resolve().parent
+        source_path = backend_root / "presets" / "2dShooter" / "source" / "GameScene.ts"
+        if not source_path.exists():
+            return "// Shooter preset source unavailable."
+        return source_path.read_text(encoding="utf-8")
 
     def _set_status(self, job: JobRecord, status: JobStatus) -> None:
         job.status = status
@@ -115,6 +187,13 @@ class JobService:
 
         # Simulate staged work while keeping the MVP deterministic.
         time.sleep(0.2)
+
+    def _run_preset_smoke_checks(self, game_dir: Path) -> None:
+        if not (game_dir / "index.html").exists():
+            raise RuntimeError("Missing shooter preset artifact: index.html")
+        if not (game_dir / "assets").exists():
+            raise RuntimeError("Missing shooter preset artifact: assets")
+        time.sleep(0.1)
 
     def _game_exists(self, game_id: str) -> bool:
         return (self.artifacts_root / "games" / game_id / "plan.json").exists()

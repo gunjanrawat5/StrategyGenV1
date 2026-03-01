@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Send, Sparkles } from "lucide-react";
+import { Send } from "lucide-react";
 
 interface CodeEditorProps {
   isGenerating: boolean;
@@ -21,12 +21,8 @@ export default function CodeEditor({ isGenerating, statusText, onGenerate, class
 
   return (
     <div className={className}>
-      <div className="mx-4 mb-4 rounded-xl border border-[#374151] bg-[#1E1E1E]/95 backdrop-blur-sm">
-        <div className="flex items-center gap-2 px-4 pt-3 pb-2">
-          <Sparkles className="w-4 h-4 text-[#FF00FF]" />
-          <span className="text-sm font-medium text-white">Omnibar</span>
-        </div>
-        <div className="px-4 pb-3">
+      <div className="mx-4 mb-4 rounded-xl border border-[#374151] bg-[#1E1E1E]/95">
+        <div className="px-4 py-3">
           <div className="relative">
             <input
               type="text"

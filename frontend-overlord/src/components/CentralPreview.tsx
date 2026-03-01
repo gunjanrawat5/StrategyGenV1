@@ -1,7 +1,5 @@
 "use client";
 
-import { MoreVertical, Maximize2 } from "lucide-react";
-
 interface CentralPreviewProps {
   gameUrl: string | null;
   isGenerating: boolean;
@@ -17,14 +15,6 @@ export default function CentralPreview({ gameUrl, isGenerating, statusText, erro
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
           <span className="text-sm font-medium text-white">Live Preview (Level 1)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button className="p-1.5 hover:bg-[#2D3748] rounded-lg transition-colors">
-            <Maximize2 className="w-4 h-4 text-[#9CA3AF]" />
-          </button>
-          <button className="p-1.5 hover:bg-[#2D3748] rounded-lg transition-colors">
-            <MoreVertical className="w-4 h-4 text-[#9CA3AF]" />
-          </button>
         </div>
       </div>
 

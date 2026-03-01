@@ -19,9 +19,6 @@ interface JobResponse {
   game_url: string | null;
 }
 
-const BACKEND_ORIGIN =
-  process.env.NEXT_PUBLIC_BACKEND_ORIGIN?.replace(/\/$/, "") ?? "http://127.0.0.1:8000";
-
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -30,7 +27,7 @@ function toAbsoluteGameUrl(gameUrl: string): string {
   if (gameUrl.startsWith("http://") || gameUrl.startsWith("https://")) {
     return gameUrl;
   }
-  return `${BACKEND_ORIGIN}${gameUrl.startsWith("/") ? "" : "/"}${gameUrl}`;
+  return gameUrl.startsWith("/") ? gameUrl : `/${gameUrl}`;
 }
 
 export default function Home() {
@@ -114,6 +111,7 @@ export default function Home() {
           isGenerating={isGenerating}
           statusText={statusText}
           onGenerate={handleGenerate}
+          gameUrl={gameUrl}
         />
 
         {/* Central Area - Full Preview */}
