@@ -23,8 +23,8 @@ const slotClients = {
 };
 
 const players = {
-  1: { x: 384, y: 576, flipX: false, moving: false, connected: false },
-  2: { x: 504, y: 456, flipX: false, moving: false, connected: false },
+  1: { x: 384, y: 576, flipX: false, moving: false, connected: false, extra: {} },
+  2: { x: 504, y: 456, flipX: false, moving: false, connected: false, extra: {} },
 };
 
 const health = {
@@ -87,6 +87,7 @@ function resetSlotState(slot) {
   players[slot].y = spawn.y;
   players[slot].flipX = false;
   players[slot].moving = false;
+  players[slot].extra = {};
 }
 
 app
@@ -187,6 +188,18 @@ app
           players[fromSlot].y = Number(msg.y) || players[fromSlot].y;
           players[fromSlot].flipX = Boolean(msg.flipX);
           players[fromSlot].moving = Boolean(msg.moving);
+
+          const extra = {};
+          if (Number.isFinite(Number(msg.score))) extra.score = Number(msg.score);
+          if (Number.isFinite(Number(msg.level))) extra.level = Number(msg.level);
+          if (Number.isFinite(Number(msg.hp))) extra.hp = Number(msg.hp);
+          if (Number.isFinite(Number(msg.shield))) extra.shield = Number(msg.shield);
+          if (typeof msg.alive === "boolean") extra.alive = msg.alive;
+          if (Array.isArray(msg.enemies)) extra.enemies = msg.enemies.slice(0, 40);
+          if (Array.isArray(msg.asteroids)) extra.asteroids = msg.asteroids.slice(0, 40);
+          if (Array.isArray(msg.bullets)) extra.bullets = msg.bullets.slice(0, 120);
+          players[fromSlot].extra = { ...players[fromSlot].extra, ...extra };
+
           broadcast(
             wss,
             {
@@ -196,6 +209,7 @@ app
               y: players[fromSlot].y,
               flipX: players[fromSlot].flipX,
               moving: players[fromSlot].moving,
+              ...players[fromSlot].extra,
             },
             ws
           );

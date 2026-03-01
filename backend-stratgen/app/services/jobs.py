@@ -12,7 +12,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.models import DifficultyParams, EnemyArchetype, GamePlan, GenerationMode, JobStatus, PhysicsRules, PlayerConfig, SceneObject
-from app.services.builder import build_shooter_modified_artifact, build_shooter_preset_artifact, extract_scene_module_from_game_js
+from app.services.builder import (
+    build_shooter_modified_artifact,
+    build_shooter_preset_artifact,
+    build_space_preset_artifact,
+    extract_scene_module_from_game_js,
+)
 from app.services.llm import PlanGenerator
 
 
@@ -82,6 +87,24 @@ class JobService:
                 self._set_status(job, JobStatus.READY)
                 return
 
+            if self._is_space_preset_prompt(job.prompt):
+                plan = self._build_space_preset_plan(job.prompt)
+                self._set_status(job, JobStatus.BUILDING)
+                source_game_code = self._load_space_preset_source_code()
+                artifact = build_space_preset_artifact(
+                    job_id=job_id,
+                    plan=plan,
+                    artifacts_root=self.artifacts_root,
+                    source_game_code=source_game_code,
+                )
+                self._set_status(job, JobStatus.TESTING)
+                self._run_preset_smoke_checks(artifact.game_dir)
+
+                job.plan = plan
+                job.game_url = artifact.game_url
+                self._set_status(job, JobStatus.READY)
+                return
+
             # Modify-only mode: always edit an existing shooter-preset-derived game.
             base_game_id = self._resolve_base_game_for_modify(job)
             plan = self._load_game_plan(base_game_id)
@@ -109,20 +132,22 @@ class JobService:
 
     def _apply_shooter_prompt_edits(self, previous_code: str, prompt: str) -> str:
         physics_context = self._extract_shooter_physics_context(previous_code)
+        feature_context = self._extract_shooter_feature_context(previous_code)
+        edited = previous_code
         try:
             with self._llm_call_semaphore:
                 edited_by_model = self.plan_generator.apply_prompt_to_shooter_source(
                     prompt=prompt,
                     source_code=previous_code,
                     physics_context=physics_context,
+                    feature_context=feature_context,
                 )
             if edited_by_model and edited_by_model.strip():
-                return edited_by_model
+                edited = edited_by_model
         except Exception:
             # Fall back to deterministic local edits if model call fails or returns unsafe output.
             pass
 
-        edited = previous_code
         prompt_l = prompt.lower()
 
         def _replace_int(pattern: str, value: int) -> None:
@@ -185,6 +210,8 @@ class JobService:
             updated = max(80, int(player_speed_override.group(1)))
             edited = re.sub(r"setMaxSpeed\(\s*\d+\s*\)", f"setMaxSpeed({updated})", edited, count=1)
 
+        edited = self._apply_speed_powerup_prompt_fallback(edited, prompt_l)
+
         return edited
 
     @staticmethod
@@ -219,6 +246,50 @@ class JobService:
         return context
 
     @staticmethod
+    def _extract_shooter_feature_context(source_code: str) -> str:
+        keywords = (
+            "createTextures",
+            "drawGround",
+            "placeLine(",
+            "placeTrees",
+            "setupDucks",
+            "setupProjectiles",
+            "setupPowerup",
+            "updatePowerup",
+            "spawnProjectile",
+            "tryShootLocal",
+            "effectiveShotCooldownMs",
+            "handleServerMessage",
+            "type ===",
+            "healthBySlot",
+            "connected",
+            "statusText",
+            "cursors",
+            "shootUpKey",
+            "shootLeftKey",
+            "shootDownKey",
+            "shootRightKey",
+            "player_joined",
+            "player_left",
+            "welcome",
+            "presence",
+            "shoot",
+            "hit",
+        )
+        lines = source_code.splitlines()
+        selected: list[str] = []
+        for line in lines:
+            if any(keyword in line for keyword in keywords):
+                selected.append(line)
+
+        context = "\n".join(selected)
+        if len(context) > 40000:
+            head = context[:20000]
+            tail = context[-20000:]
+            context = f"{head}\n// ... feature context truncated ...\n{tail}"
+        return context
+
+    @staticmethod
     def _extract_speed_factor(prompt_l: str, subject: str) -> float | None:
         if subject == "shoot":
             patterns = [
@@ -244,8 +315,57 @@ class JobService:
         return None
 
     @staticmethod
+    def _apply_speed_powerup_prompt_fallback(source_code: str, prompt_l: str) -> str:
+        asks_powerup = "powerup" in prompt_l or "power-up" in prompt_l
+        asks_speed = "speed" in prompt_l or "movement" in prompt_l
+        if not (asks_powerup and asks_speed):
+            return source_code
+
+        edited = source_code
+
+        if "private speedBoostUntil" not in edited:
+            edited = edited.replace(
+                "  private shootBoostUntil = 0\n  private nextPowerupSpawnAt = 0\n",
+                "  private shootBoostUntil = 0\n  private speedBoostUntil = 0\n  private readonly speedBoostDurationMs = 5000\n  private readonly speedBoostMultiplier = 3\n  private nextPowerupSpawnAt = 0\n",
+            )
+
+        if "generateTexture('powerup-rect'" not in edited and "generateTexture('powerup-speed'" not in edited:
+            edited = edited.replace(
+                "      g.generateTexture('powerup-orb', 24, 24)\n      g.clear()\n",
+                "      g.generateTexture('powerup-orb', 24, 24)\n      g.clear()\n\n      g.fillStyle(0xff0000, 1)\n      g.fillRoundedRect(2, 4, 20, 16, 3)\n      g.lineStyle(2, 0xffaa00, 1)\n      g.strokeRoundedRect(2, 4, 20, 16, 3)\n      g.generateTexture('powerup-rect', 24, 24)\n      g.clear()\n",
+            )
+
+        edited = edited.replace("'powerup-speed'", "'powerup-rect'")
+        edited = edited.replace('"powerup-speed"', '"powerup-rect"')
+        edited = edited.replace("'powerup-orb'", "'powerup-rect'")
+        edited = edited.replace('"powerup-orb"', '"powerup-rect"')
+
+        if "this.speedBoostUntil = this.time.now + this.speedBoostDurationMs" not in edited:
+            edited = edited.replace(
+                "    this.shootBoostUntil = this.time.now + this.powerupDurationMs\n",
+                "    this.shootBoostUntil = this.time.now + this.powerupDurationMs\n    this.speedBoostUntil = this.time.now + this.speedBoostDurationMs\n",
+            )
+
+        if "const effectiveAccel = this.time.now < this.speedBoostUntil" not in edited:
+            edited = edited.replace(
+                "      const localDuck = this.ducks[this.localSlot]\n      const body = localDuck.body as Phaser.Physics.Arcade.Body\n",
+                "      const localDuck = this.ducks[this.localSlot]\n      const body = localDuck.body as Phaser.Physics.Arcade.Body\n      const effectiveAccel = this.time.now < this.speedBoostUntil ? 600 * this.speedBoostMultiplier : 600\n      body.setMaxSpeed(this.time.now < this.speedBoostUntil ? 840 : 280)\n",
+            )
+            edited = edited.replace("body.setAccelerationX(-600)", "body.setAccelerationX(-effectiveAccel)")
+            edited = edited.replace("body.setAccelerationX(600)", "body.setAccelerationX(effectiveAccel)")
+            edited = edited.replace("body.setAccelerationY(-600)", "body.setAccelerationY(-effectiveAccel)")
+            edited = edited.replace("body.setAccelerationY(600)", "body.setAccelerationY(effectiveAccel)")
+
+        return edited
+
+    @staticmethod
     def _is_shooter_preset_prompt(prompt: str) -> bool:
         return "shooter" in prompt.lower()
+
+    @staticmethod
+    def _is_space_preset_prompt(prompt: str) -> bool:
+        prompt_l = prompt.lower()
+        return "space" in prompt_l or "spaceship" in prompt_l or "stellar" in prompt_l
 
     @staticmethod
     def _build_shooter_preset_plan(prompt: str) -> GamePlan:
@@ -290,11 +410,62 @@ class JobService:
             ],
         )
 
+    @staticmethod
+    def _build_space_preset_plan(prompt: str) -> GamePlan:
+        return GamePlan(
+            title="2D Space Duel Preset",
+            genre="Split Arena Shooter",
+            core_loop="Two players battle in mirrored left/right space arenas over websocket sync.",
+            controls=["W", "A", "S", "D", "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"],
+            mechanics=["shoot", "dodge", "survive"],
+            player=PlayerConfig(speed=280, radius=14, color="#4cc9f0", health=10),
+            enemy_archetypes=[
+                EnemyArchetype(
+                    id="space_opponent",
+                    movement="chase",
+                    speed=260,
+                    radius=14,
+                    color="#f94144",
+                    count=1,
+                )
+            ],
+            player_rules=[
+                "Local player moves with keyboard controls.",
+                "Player state is broadcast over websocket and rendered on the mirrored arena.",
+                "Each side has independent arena simulation with competitive scoring.",
+            ],
+            enemy_rules=["Space enemies and hazards spawn per arena and can eliminate players."],
+            physics_rules=PhysicsRules(gravity=0, max_speed=320, friction=0.12),
+            win_condition="Outscore or outlast the opposing player.",
+            lose_condition="Player is destroyed.",
+            ui_text={"title": "2D Space Duel"},
+            difficulty=DifficultyParams(
+                enemy_spawn_interval_ms=1000,
+                enemy_speed=260,
+                score_per_enemy=1,
+                target_score=10,
+            ),
+            scene_graph_objects=[
+                SceneObject(id="arena_left", kind="decoration"),
+                SceneObject(id="arena_right", kind="decoration"),
+                SceneObject(id="player_local", kind="player"),
+                SceneObject(id="player_remote", kind="enemy"),
+                SceneObject(id="projectile", kind="projectile"),
+            ],
+        )
+
     def _load_shooter_preset_source_code(self) -> str:
         backend_root = self.artifacts_root.resolve().parent
         source_path = backend_root / "presets" / "2dShooter" / "source" / "GameScene.ts"
         if not source_path.exists():
             return "// Shooter preset source unavailable."
+        return source_path.read_text(encoding="utf-8")
+
+    def _load_space_preset_source_code(self) -> str:
+        backend_root = self.artifacts_root.resolve().parent
+        source_path = backend_root / "presets" / "2dSpace" / "source" / "game.js"
+        if not source_path.exists():
+            return "// Space preset source unavailable."
         return source_path.read_text(encoding="utf-8")
 
     def _find_latest_shooter_preset_game_id(self) -> str | None:

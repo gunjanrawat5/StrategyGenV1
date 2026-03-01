@@ -25,10 +25,21 @@ export default class GameScene extends Phaser.Scene {
 
   private readonly maxHealth = 100
   private readonly shotCooldownMs = 220
+  private readonly powerupDurationMs = 5000
+  private readonly powerupRespawnMs = 10000
   private readonly stateSendMs = 50
   private lastShotAt = 0
   private lastStateSentAt = 0
   private shootDir = new Phaser.Math.Vector2(1, 0)
+  private powerupOrb?: Phaser.Physics.Arcade.Image
+  private shootBoostUntil = 0
+  private nextPowerupSpawnAt = 0
+  private powerupSpawnPoints = [
+    { x: 6 * 64 + 32, y: 5 * 64 + 32 },
+    { x: 3 * 64 + 32, y: 9 * 64 + 32 },
+    { x: 9 * 64 + 32, y: 9 * 64 + 32 },
+    { x: 6 * 64 + 32, y: 11 * 64 + 32 }
+  ]
 
   private healthBars!: Record<Slot, Phaser.GameObjects.Graphics>
   private healthText!: Phaser.GameObjects.Text
@@ -190,6 +201,15 @@ export default class GameScene extends Phaser.Scene {
       g.generateTexture('fireball', 20, 20)
       g.clear()
 
+      g.fillStyle(0xff4fd8, 1)
+      g.fillCircle(12, 12, 12)
+      g.lineStyle(3, 0xffb4f2, 1)
+      g.strokeCircle(12, 12, 10)
+      g.fillStyle(0xffffff, 0.9)
+      g.fillCircle(8, 8, 4)
+      g.generateTexture('powerup-orb', 24, 24)
+      g.clear()
+
       g.destroy()
     }
   }
@@ -286,7 +306,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     const now = this.time.now
-    if (now - this.lastShotAt < this.shotCooldownMs) {
+    if (now - this.lastShotAt < this.effectiveShotCooldownMs()) {
       return
     }
 
@@ -300,6 +320,54 @@ export default class GameScene extends Phaser.Scene {
       dy
     })
     this.lastShotAt = now
+  }
+
+  private effectiveShotCooldownMs() {
+    if (this.time.now < this.shootBoostUntil) {
+      return this.shotCooldownMs / 2
+    }
+    return this.shotCooldownMs
+  }
+
+  private setupPowerup() {
+    this.powerupOrb = this.physics.add.image(-200, -200, 'powerup-orb')
+    this.powerupOrb.setDepth(2.8)
+    this.powerupOrb.body.setAllowGravity(false)
+    this.powerupOrb.body.setImmovable(true)
+    this.powerupOrb.setVisible(false)
+    this.powerupOrb.disableBody(true, true)
+    this.nextPowerupSpawnAt = this.time.now + 1000
+  }
+
+  private collectPowerup() {
+    if (!this.powerupOrb || !this.localSlot) {
+      return
+    }
+    this.shootBoostUntil = this.time.now + this.powerupDurationMs
+    this.powerupOrb.disableBody(true, true)
+    this.nextPowerupSpawnAt = this.time.now + this.powerupRespawnMs
+  }
+
+  private updatePowerup() {
+    if (!this.powerupOrb || !this.localSlot) {
+      return
+    }
+
+    if (!this.powerupOrb.active && this.time.now >= this.nextPowerupSpawnAt) {
+      const spawn = Phaser.Utils.Array.GetRandom(this.powerupSpawnPoints)
+      this.powerupOrb.enableBody(true, spawn.x, spawn.y, true, true)
+      this.powerupOrb.setScale(1)
+      this.powerupOrb.setAlpha(1)
+    }
+
+    if (this.powerupOrb.active) {
+      this.powerupOrb.setRotation(this.powerupOrb.rotation + 0.03)
+      this.powerupOrb.setScale(1 + Math.sin(this.time.now / 120) * 0.08)
+      const localDuck = this.ducks[this.localSlot]
+      if (Phaser.Math.Distance.Between(localDuck.x, localDuck.y, this.powerupOrb.x, this.powerupOrb.y) < 30) {
+        this.collectPowerup()
+      }
+    }
   }
 
   private placeLine(startX: number, startY: number, count: number, horizontal: boolean, key: 'wall' | 'crate' | 'barrel') {
@@ -568,13 +636,6 @@ export default class GameScene extends Phaser.Scene {
     this.placeLine(7, 7, 3, true, 'wall')
     this.placeLine(3, 3, 2, true, 'wall')
     this.placeLine(7, 3, 2, true, 'wall')
-
-    this.placeLine(2, 2, 2, true, 'crate')
-    this.placeLine(9, 2, 1, true, 'crate')
-    this.placeLine(2, 6, 1, true, 'crate')
-    this.placeLine(8, 6, 2, true, 'barrel')
-    this.placeLine(2, 12, 2, true, 'crate')
-    this.placeLine(8, 12, 2, true, 'crate')
     this.placeLine(2, 15, 2, true, 'barrel')
     this.placeLine(9, 15, 2, true, 'barrel')
     this.placeLine(6, 4, 1, true, 'crate')
@@ -590,6 +651,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.setupDucks()
     this.setupProjectiles()
+    this.setupPowerup()
 
     this.cameras.main.setZoom(0.95)
 
@@ -714,6 +776,8 @@ export default class GameScene extends Phaser.Scene {
       }
     }
 
+    this.updatePowerup()
+
     this.drawHealthBar(this.healthBars[1], this.ducks[1], this.healthBySlot[1], 0x52d668)
     this.drawHealthBar(this.healthBars[2], this.ducks[2], this.healthBySlot[2], 0xe45a5a)
 
@@ -739,3 +803,6 @@ export default class GameScene extends Phaser.Scene {
     })
   }
 }
+
+
+

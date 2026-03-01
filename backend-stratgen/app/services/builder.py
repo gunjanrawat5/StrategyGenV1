@@ -267,6 +267,7 @@ def build_shooter_preset_artifact(
             'function Lt(){return`${window.location.protocol==="https:"?"wss:":"ws:"}//${window.location.host}/ws`}',
             'function Lt(){if(window.__SHOOTER_WS_URL__){return window.__SHOOTER_WS_URL__}return`${window.location.protocol==="https:"?"wss:":"ws:"}//${window.location.host}/ws`}',
         )
+        bundle_text = _inject_shooter_powerup_to_bundle(bundle_text)
         js_bundle.write_text(bundle_text, encoding="utf-8")
 
     # Keep plan/code artifacts so later modify flows can use this preset as a base game.
@@ -276,6 +277,62 @@ def build_shooter_preset_artifact(
     slug = _slugify(plan.title)
     (game_dir / "metadata.json").write_text(
         json.dumps({"job_id": job_id, "slug": slug, "title": plan.title, "preset": "2dShooter"}, indent=2),
+        encoding="utf-8",
+    )
+
+    return BuildArtifact(
+        game_dir=game_dir,
+        game_url=f"/games/{job_id}/index.html",
+        plan=plan,
+    )
+
+
+def build_space_preset_artifact(
+    job_id: str,
+    plan: GamePlan,
+    artifacts_root: Path,
+    source_game_code: str,
+) -> BuildArtifact:
+    game_dir = artifacts_root / "games" / job_id
+    game_dir.mkdir(parents=True, exist_ok=True)
+
+    backend_root = artifacts_root.resolve().parent
+    preset_dist = backend_root / "presets" / "2dSpace" / "dist"
+    preset_assets = backend_root / "presets" / "2dSpace" / "assets"
+    if not preset_dist.exists():
+        raise FileNotFoundError(
+            "Space preset dist not found at backend-stratgen/presets/2dSpace/dist. "
+            "Build/copy the 2dSpace dist first."
+        )
+    if not preset_assets.exists():
+        raise FileNotFoundError(
+            "Space preset assets not found at backend-stratgen/presets/2dSpace/assets."
+        )
+
+    shutil.copytree(preset_dist, game_dir, dirs_exist_ok=True)
+    shutil.copytree(preset_assets, game_dir / "assets", dirs_exist_ok=True)
+
+    index_path = game_dir / "index.html"
+    if not index_path.exists():
+        raise FileNotFoundError("Space preset missing index.html")
+
+    index_html = index_path.read_text(encoding="utf-8")
+    space_ws_url = os.getenv("SPACE_WS_URL", "").strip()
+    if space_ws_url:
+        ws_script = (
+            "<script>"
+            f"window.__SPACE_WS_URL__={json.dumps(space_ws_url)};"
+            "</script>"
+        )
+        index_html = index_html.replace("</body>", f"  {ws_script}\n</body>")
+    index_path.write_text(index_html, encoding="utf-8")
+
+    (game_dir / "plan.json").write_text(plan.model_dump_json(indent=2), encoding="utf-8")
+    (game_dir / "game.js").write_text(source_game_code, encoding="utf-8")
+
+    slug = _slugify(plan.title)
+    (game_dir / "metadata.json").write_text(
+        json.dumps({"job_id": job_id, "slug": slug, "title": plan.title, "preset": "2dSpace"}, indent=2),
         encoding="utf-8",
     )
 
@@ -308,6 +365,40 @@ def _extract_shooter_tunables_from_source(source_game_code: str) -> dict[str, in
     return tunables
 
 
+def _inject_shooter_powerup_to_bundle(bundle_text: str) -> str:
+    updated = bundle_text
+    # Add power-up runtime fields.
+    updated = updated.replace(
+        "this.shotCooldownMs=220,this.stateSendMs=50,this.lastShotAt=0,this.lastStateSentAt=0,this.shootDir=new dt.Math.Vector2(1,0),this.worldWidth=0,this.worldHeight=0",
+        "this.shotCooldownMs=220,this.powerupDurationMs=5e3,this.powerupRespawnMs=1e4,this.stateSendMs=50,this.lastShotAt=0,this.lastStateSentAt=0,this.shootDir=new dt.Math.Vector2(1,0),this.shootBoostUntil=0,this.nextPowerupSpawnAt=0,this.powerupSpawnPoints=[{x:416,y:352},{x:224,y:608},{x:608,y:608},{x:416,y:736}],this.worldWidth=0,this.worldHeight=0",
+    )
+    # Add texture for pink power-up orb.
+    updated = updated.replace(
+        'b.generateTexture("fireball",20,20),b.clear(),b.destroy()',
+        'b.generateTexture("fireball",20,20),b.clear(),b.fillStyle(16732120,1),b.fillCircle(12,12,12),b.lineStyle(3,16758002,1),b.strokeCircle(12,12,10),b.fillStyle(16777215,.9),b.fillCircle(8,8,4),b.generateTexture("powerup-orb",24,24),b.clear(),b.destroy()',
+    )
+    # Use effective cooldown while boost is active.
+    updated = updated.replace(
+        "if(k-this.lastShotAt<this.shotCooldownMs)return;",
+        "if(k-this.lastShotAt<this.effectiveShotCooldownMs())return;",
+    )
+    # Add setup and update hooks.
+    updated = updated.replace(
+        "this.setupDucks(),this.setupProjectiles(),this.cameras.main.setZoom(.95)",
+        "this.setupDucks(),this.setupProjectiles(),this.setupPowerup(),this.cameras.main.setZoom(.95)",
+    )
+    updated = updated.replace(
+        "this.drawHealthBar(this.healthBars[1],this.ducks[1],this.healthBySlot[1],5428840),",
+        "this.updatePowerup(),this.drawHealthBar(this.healthBars[1],this.ducks[1],this.healthBySlot[1],5428840),",
+    )
+    # Inject methods into class body.
+    updated = updated.replace(
+        "})}handleServerMessage(b){",
+        '})}setupPowerup(){this.powerupOrb=this.physics.add.image(-200,-200,"powerup-orb"),this.powerupOrb.setDepth(2.8),this.powerupOrb.body.setAllowGravity(!1),this.powerupOrb.body.setImmovable(!0),this.powerupOrb.setVisible(!1),this.powerupOrb.disableBody(!0,!0),this.nextPowerupSpawnAt=this.time.now+1e3}collectPowerup(){!this.powerupOrb||!this.localSlot||(this.shootBoostUntil=this.time.now+this.powerupDurationMs,this.powerupOrb.disableBody(!0,!0),this.nextPowerupSpawnAt=this.time.now+this.powerupRespawnMs)}updatePowerup(){if(!this.powerupOrb||!this.localSlot)return;if(!this.powerupOrb.active&&this.time.now>=this.nextPowerupSpawnAt){const S=dt.Utils.Array.GetRandom(this.powerupSpawnPoints);this.powerupOrb.enableBody(!0,S.x,S.y,!0,!0),this.powerupOrb.setScale(1),this.powerupOrb.setAlpha(1)}if(this.powerupOrb.active){this.powerupOrb.setRotation(this.powerupOrb.rotation+.03),this.powerupOrb.setScale(1+Math.sin(this.time.now/120)*.08);const b=this.ducks[this.localSlot];dt.Math.Distance.Between(b.x,b.y,this.powerupOrb.x,this.powerupOrb.y)<30&&this.collectPowerup()}}effectiveShotCooldownMs(){return this.time.now<this.shootBoostUntil?this.shotCooldownMs/2:this.shotCooldownMs}handleServerMessage(b){',
+    )
+    return updated
+
+
 def _apply_shooter_tunables_to_bundle(bundle_text: str, tunables: dict[str, int]) -> str:
     updated = bundle_text
     if "shot_cooldown_ms" in tunables:
@@ -330,6 +421,60 @@ def _apply_shooter_tunables_to_bundle(bundle_text: str, tunables: dict[str, int]
     return updated
 
 
+def _inject_shooter_speed_powerup_to_bundle(bundle_text: str) -> str:
+    updated = bundle_text
+
+    # Add movement boost runtime fields.
+    updated = updated.replace(
+        "this.shootBoostUntil=0,this.nextPowerupSpawnAt=0",
+        "this.shootBoostUntil=0,this.speedBoostUntil=0,this.speedBoostDurationMs=5e3,this.speedBoostMultiplier=3,this.nextPowerupSpawnAt=0",
+    )
+
+    # Add red rectangle texture for speed boost.
+    updated = updated.replace(
+        'b.generateTexture("powerup-orb",24,24),b.clear(),b.destroy()',
+        'b.generateTexture("powerup-orb",24,24),b.clear(),b.fillStyle(16711680,1),b.fillRoundedRect(2,4,20,16,3),b.lineStyle(2,16755200,1),b.strokeRoundedRect(2,4,20,16,3),b.generateTexture("powerup-rect",24,24),b.clear(),b.destroy()',
+    )
+
+    # Use red rectangle power-up sprite for collection.
+    updated = updated.replace(
+        'this.powerupOrb=this.physics.add.image(-200,-200,"powerup-orb")',
+        'this.powerupOrb=this.physics.add.image(-200,-200,"powerup-rect")',
+    )
+
+    # Trigger movement boost on collect for 5 seconds.
+    updated = updated.replace(
+        "this.shootBoostUntil=this.time.now+this.powerupDurationMs",
+        "this.shootBoostUntil=this.time.now+this.powerupDurationMs,this.speedBoostUntil=this.time.now+this.speedBoostDurationMs",
+    )
+
+    # Apply dynamic acceleration boost while active.
+    updated = updated.replace(
+        "rt.setAccelerationX(-600)",
+        "rt.setAccelerationX(-(this.time.now<this.speedBoostUntil?600*this.speedBoostMultiplier:600))",
+    )
+    updated = updated.replace(
+        "rt.setAccelerationX(600)",
+        "rt.setAccelerationX(this.time.now<this.speedBoostUntil?600*this.speedBoostMultiplier:600)",
+    )
+    updated = updated.replace(
+        "rt.setAccelerationY(-600)",
+        "rt.setAccelerationY(-(this.time.now<this.speedBoostUntil?600*this.speedBoostMultiplier:600))",
+    )
+    updated = updated.replace(
+        "rt.setAccelerationY(600)",
+        "rt.setAccelerationY(this.time.now<this.speedBoostUntil?600*this.speedBoostMultiplier:600)",
+    )
+
+    # Raise max speed while boosted so acceleration can take effect.
+    updated = updated.replace(
+        "const tt=this.ducks[this.localSlot],rt=tt.body;",
+        "const tt=this.ducks[this.localSlot],rt=tt.body;rt.setMaxSpeed(this.time.now<this.speedBoostUntil?840:280);",
+    )
+
+    return updated
+
+
 def build_shooter_modified_artifact(
     job_id: str,
     plan: GamePlan,
@@ -347,6 +492,8 @@ def build_shooter_modified_artifact(
     for js_bundle in (artifact.game_dir / "assets").glob("*.js"):
         bundle_text = js_bundle.read_text(encoding="utf-8")
         bundle_text = _apply_shooter_tunables_to_bundle(bundle_text, tunables)
+        if "speedBoostUntil" in source_game_code or "powerup-speed" in source_game_code or "powerup-rect" in source_game_code:
+            bundle_text = _inject_shooter_speed_powerup_to_bundle(bundle_text)
         js_bundle.write_text(bundle_text, encoding="utf-8")
 
     return artifact

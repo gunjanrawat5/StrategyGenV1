@@ -24,7 +24,13 @@ class PlanGenerator(Protocol):
     def generate_game_code(self, prompt: str, plan: GamePlan, previous_code: str | None = None) -> str:
         ...
 
-    def apply_prompt_to_shooter_source(self, prompt: str, source_code: str, physics_context: str) -> str:
+    def apply_prompt_to_shooter_source(
+        self,
+        prompt: str,
+        source_code: str,
+        physics_context: str,
+        feature_context: str = "",
+    ) -> str:
         ...
 
 
@@ -149,7 +155,13 @@ function createGeneratedScene(Phaser, PLAN) {
 }
 """
 
-    def apply_prompt_to_shooter_source(self, prompt: str, source_code: str, physics_context: str) -> str:
+    def apply_prompt_to_shooter_source(
+        self,
+        prompt: str,
+        source_code: str,
+        physics_context: str,
+        feature_context: str = "",
+    ) -> str:
         return source_code
 
     @staticmethod
@@ -199,10 +211,20 @@ class GeminiPlanGenerator:
             errors = self._validate_scene_module(raw_code)
         raise RuntimeError("Unexpected code generation state.")
 
-    def apply_prompt_to_shooter_source(self, prompt: str, source_code: str, physics_context: str) -> str:
+    def apply_prompt_to_shooter_source(
+        self,
+        prompt: str,
+        source_code: str,
+        physics_context: str,
+        feature_context: str = "",
+    ) -> str:
         source_context = self._truncate_context(source_code, max_chars=getattr(self, "context_chars", 200000))
         physics_context_block = self._truncate_context(
             physics_context,
+            max_chars=max(4000, getattr(self, "context_chars", 200000) // 2),
+        )
+        feature_context_block = self._truncate_context(
+            feature_context,
             max_chars=max(4000, getattr(self, "context_chars", 200000) // 2),
         )
         edit_prompt = (
@@ -213,8 +235,11 @@ class GeminiPlanGenerator:
             "- Keep class/exports/function names compatible with existing code.\n"
             "- Do not remove or rename message types used by multiplayer sync.\n"
             "- Prioritize gameplay and physics mechanic edits requested by the user.\n"
+            "- You MAY add small new mechanics/features explicitly requested by the user (e.g. pickups, hazards, cooldown behavior, minor UI hints).\n"
+            "- Any new mechanic must stay lightweight and integrated into existing create()/update() and networking rules.\n"
             "- Preserve unrelated logic and rendering code.\n\n"
             f"User edit request:\n{prompt}\n\n"
+            f"Current shooter feature context (systems already present):\n{feature_context_block}\n\n"
             f"Physics-related context from current file:\n{physics_context_block}\n\n"
             f"Current full source file:\n{source_context}\n"
         )

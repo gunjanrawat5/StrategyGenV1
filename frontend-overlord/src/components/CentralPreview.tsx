@@ -90,12 +90,12 @@ export default function CentralPreview({ gameUrl, isGenerating, statusText, erro
                 <span className="text-green-400 font-mono">60</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="text-[#9CA3AF]">Entities:</span>
-                <span className="text-[#00D4FF] font-mono">4</span>
+                <span className="text-[#9CA3AF]">API:</span>
+                <span className="text-[#00D4FF] font-mono">featherless</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="text-[#9CA3AF]">Draw Calls:</span>
-                <span className="text-[#FFA500] font-mono">128</span>
+                <span className="text-[#9CA3AF]">Games:</span>
+                <span className="text-[#FFA500] font-mono">2</span>
               </div>
             </div>
           </div>
