@@ -19,7 +19,7 @@ export const metadata: Metadata = {
   keywords: ["Overlord", "Game Development", "Creator Studio", "AI", "Next.js", "TypeScript"],
   authors: [{ name: "Overlord Team" }],
   icons: {
-    icon: "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+    icon: "/favicon.ico",
   },
   openGraph: {
     title: "Overlord - Creator Studio",

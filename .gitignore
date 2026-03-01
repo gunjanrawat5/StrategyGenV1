@@ -54,9 +54,8 @@ frontend-overlord/upload/*
 frontend-overlord/download/*
 !frontend-overlord/download/.gitkeep
 
-# Zai/Claude workspace internals
+# workspace tool internals
 frontend-overlord/.claude
-frontend-overlord/.z-ai-config
 frontend-overlord/skills/
 frontend-overlord/mini-services/
 frontend-overlord/local-*
